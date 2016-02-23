@@ -10,8 +10,8 @@ from sklearn.decomposition import PCA
 #from tsne import tsne
 
 
-import sys
-sys.path.insert(0, '/Users/zachzhang/Arcade-Learning-Environment-0.5.1/doc/examples/ConvNet')
+#import sys
+#sys.path.insert(0, '/Users/zachzhang/Arcade-Learning-Environment-0.5.1/doc/examples/ConvNet')
 
 from convnet import *
 
