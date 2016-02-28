@@ -32,7 +32,7 @@ class HiddenLayer():
     
     def __init__(self,in_,out_,act_func = T.nnet.sigmoid ):
         
-        init_var = .1
+        init_var = .01
         #W = theano.shared(init_var*random.randn(out_,in_))
         W = theano.shared(init_var*random.randn(in_,out_))
         b = theano.shared(zeros(out_))
@@ -56,8 +56,9 @@ class HiddenLayer():
 
 class DNN():
 
-    def relu(self,input_):
-        return T.switch(input_ > 0, input_, 0.05*input_)
+
+    #def relu(self,input_):
+    #    return T.switch(input_ > 0, input_, 0.05*input_)
 
     def __init__(self,arc,act_func = T.nnet.sigmoid ,output_act = None ,dropout= 0):
         self.arc = arc
@@ -199,7 +200,7 @@ class ConvNet():
 
         for layer in self.layers:
             h = layer.apply(h)
-            mask = theano.shared((1-self.dropout) * h.shape)
+            mask = theano.shared((1-self.dropout))
             h =  h * T.cast(mask, theano.config.floatX)
 
         t = T.flatten(h,2)
@@ -207,16 +208,19 @@ class ConvNet():
         y = self.mlp.dropout_predict(t)
         return y
 
+
 class ConvLayer():
 
-    def relu(self,input_):
-        return T.switch(input_ > 0, input_, 0.05*input_)
+    #def relu(self,input_):
+    #    return T.switch(input_ > 0, input_, 0.05*input_)
         
     def __init__(self,kernel_size, num_maps, poolsize ,stack_size ,act_func = T.tanh):
         
+        init_var = .01
+
         rng = random.RandomState(23455) 
         
-        self.W = theano.shared( random.randn(num_maps, stack_size , kernel_size,kernel_size) )
+        self.W = theano.shared( init_var * random.randn(num_maps, stack_size , kernel_size,kernel_size) )
                 
         b_values = zeros(num_maps)
         self.b = theano.shared(value=b_values, borrow=True) 

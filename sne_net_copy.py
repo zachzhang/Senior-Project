@@ -206,14 +206,16 @@ def test_minibatch_with_dropout():
     '''
 
 
-def test_cnn():
+def test_cnn(fn , epochs, batch_size, conv_arc,mlp_params, conv_act,dense_act,dropout):
+
+    f = open('/nfshome/zazhang/Senior-Project/results/'+ fn,'w')
 
     X = loadtxt("mnist2500_X.txt");
     #Y = loadtxt("tsne_points.txt");
     #Y = loadtxt('tsne_20.txt')
-    #Y = loadtxt('tsne_40.txt')
-    Y = loadtxt('tsne_60.txt')
-    #Y = loadtxt('tsne_150.txt')
+   # Y = loadtxt('tsne_40.txt')
+   # Y = loadtxt('tsne_60.txt')
+    Y = loadtxt('tsne_10.txt')
 
     labels = loadtxt("mnist2500_labels.txt");
 
@@ -235,27 +237,29 @@ def test_cnn():
     training_y = theano.shared( Y )
 
     image_shape = (28,28)
-    conv_arc =  [( 5, 15,2),( 5, 10,2)]
-    #conv_arc = [(5,5,2)]
-    mlp_params = [100,60]
+    #conv_arc =  [( 5, 15,2),( 5, 10,2)]
+    #mlp_params = [100,60]
 
-    conv_net = ConvNet(mlp_params,conv_arc,image_shape)
+    conv_net = ConvNet(mlp_params,conv_arc,image_shape , conv_act = conv_act, dense_act = dense_act,dropout= dropout)
+    
+    print(conv_net.mlp.arc)
 
     x = T.tensor4()
     y = T.matrix()
-    y_hat = conv_net.apply(x)
+    y_hat = conv_net.apply_dropout(x)
 
     loss = T.mean(T.sqr(y_hat - y))
 
     params = conv_net.params
 
-    lr = theano.shared(.005)
+    lr = theano.shared(.01)
     rms_updates = RMSprop(loss,params,lr)
 
     index = T.lscalar()
 
-    epochs = 2000
-    batch_size =500
+
+    #epochs = 5
+    #batch_size =500
 
     train_model_rms = theano.function(
         inputs=[index],
@@ -269,30 +273,55 @@ def test_cnn():
 
     predict = theano.function(
         inputs=[x],
-        outputs= conv_net.apply(x),
+        outputs= conv_net.predict_dropout(x),
     )
 
+    best_so_far = 10000
+    last_improvement = 1
+    
+    patience = 10
+
     num_batches = int(floor(X.shape[0] / batch_size))
+    
     for j in range(epochs):
         errors = 0
         for i in range(num_batches):
-            #t =  train_model(i)
             t = train_model_rms(i)
 
             errors = errors + t
-        print(errors / num_batches , j)
+    
+        avg_error = errors / num_batches
+        
+        print(avg_error , j)
 
-        if j > 1200:
-            lr.set_value(.001)
+        f.write(str(avg_error) + "  " + str(j) + "\n" )
+
+        if avg_error < best_so_far:
+            best_so_far = avg_error
+            last_improvement = 0
+        else:
+            last_improvement+=1
+
+        if last_improvement > patience:
+            lr.set_value(  lr.get_value() * .75 )
+            last_improvement = 0
+            print("NEW LEARNING RATE = " + str(lr.get_value()))
+        #if j > 1200:
+        #    lr.set_value(.001)
 
     print("Finished Training")
 
 
     print("Embedding Data")
+    
+    
+    print(reshape(X,(X.shape[0],1,28,28) ).shape)
     #Data with dimensionality reduction
-    Y_hat = predict(X)
+    Y_hat = predict(reshape(X,(X.shape[0],1,28,28) )  )
 
-    validation  = predict(test_data_X)
+
+    validation  = predict(reshape(test_data_X , ( test_data_X.shape[0],1,28,28) ) )
+
     l2 =  mean((validation - test_data_Y)**2)
 
     print(l2)
@@ -328,7 +357,7 @@ def test_cnn():
 
 
     embeded_pca = pca.transform(test_data_X)
-    embeded_sne = predict(test_data_X)
+    embeded_sne = predict(reshape(test_data_X , ( test_data_X.shape[0],1,28,28) )  )
 
     print("Beginning Testing")
     for i in range(test_data_X.shape[0]):
@@ -353,29 +382,69 @@ def test_cnn():
     print("Normal KNN :  " + str( float(test_data_X.shape[0] - error) / test_data_X.shape[0] ))
     print("Validation KNN :  " + str( float(test_data_X.shape[0] - error_valid) / test_data_X.shape[0] ))
 
-    '''
-    plt.figure()
-    plt.scatter(Y[:,0],Y[:,1])
 
-    plt.figure()
-    plt.scatter(Y_hat[:,0],Y_hat[:,1])
-
-    plt.show()
-    '''
+    f.write("L2 error during trianing: " + str(best_so_far) + "\n")
+    f.write("L2 error on test data:  " + str(l2) + "\n")
+    f.write("Embedded KNN :  " + str( float(test_data_X.shape[0] - error_sne) / test_data_X.shape[0] ) + "\n")
+    f.write("PCA KNN :  " + str( float(test_data_X.shape[0] - error_pca) / test_data_X.shape[0] ) + "\n")
+    f.write("Normal KNN :  " + str( float(test_data_X.shape[0] - error) / test_data_X.shape[0] ) + "\n")
+    f.write("Validation KNN :  " + str( float(test_data_X.shape[0] - error_valid) / test_data_X.shape[0] ) + "\n")
 
 
+def relu(input_):
+
+    return T.switch(input_ > 0, input_, input_ * .05)
 
 
 if __name__ == '__main__':
-    #[ X,Y,labels] = tsne.run_tsne()
-    #dropout_test()
-    #theano_pdist()
-    test_cnn()
-    #unsupervised_sne_net()
+    #epochs, batch_size, conv_arc,mlp_params, conv_act,dense_act,dropout
 
-    #test_minibatch_with_dropout()
+    epochs = 350
+    batch_size = 500
+    conv_arc = [( 5, 15,2),( 5, 15,2)]
+    mlp_params = [100,10]
+    conv_act = T.tanh
+    dense_act = T.tanh
+    dropout = .0
 
-    #test_rmsprop()
-    #test_minibatch()
-    #test_single()
-    #dnn_test()
+
+    #test_cnn('baseline_test.txt',epochs, batch_size, conv_arc,mlp_params, conv_act,dense_act,dropout)
+    #test_cnn('baseline_test.txt',epochs, batch_size, conv_arc,mlp_params, conv_act,dense_act,.2)
+
+    #best so far .945 error
+    #params - conv arc [( 5, 15,2),( 5, 15,2)] ,desnse arc[100,10], all relu, .2 dropout
+
+    #test_cnn('more_dropout.txt',epochs, batch_size, conv_arc,mlp_params, relu,relu,.1)
+    #test_cnn('less_dropout.txt',epochs, batch_size, conv_arc,mlp_params, relu,relu,.3)
+
+    #conv_arc = [( 5, 20,2),( 5, 20,2)]
+    #mlp_params = [200,10]
+
+    test_cnn('smoother_relu.txt',epochs, batch_size, conv_arc,mlp_params, relu,relu,.2)
+
+    '''
+    #Actual Baseline
+    test_cnn('baseline_test.txt',epochs, batch_size, conv_arc,mlp_params, conv_act,dense_act,dropout)
+
+    dropout = .1
+
+    #Baseline test- std activations + .1 dropout
+    test_cnn('dropout_test.txt',epochs, batch_size, conv_arc,mlp_params, conv_act,dense_act,dropout)
+
+    dropout = .2
+
+    #more dropout
+    test_cnn('more_dropout.txt',epochs, batch_size, conv_arc,mlp_params, conv_act,dense_act,dropout)
+
+    dropout =.1
+    conv_act = relu
+    dense_act = relu
+
+    #all relu
+    test_cnn('all_relu.txt' ,epochs, batch_size, conv_arc,mlp_params, conv_act,dense_act,dropout)
+
+    conv_act = T.tanh
+
+    #just desne relue
+    test_cnn('only_dense_relu.txt' , epochs, batch_size, conv_arc,mlp_params, conv_act,dense_act,dropout)
+    '''

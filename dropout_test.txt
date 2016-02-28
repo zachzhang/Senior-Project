@@ -1,0 +1,5 @@
+L2 error on test data:  1.09206579629
+Embedded KNN :  0.895
+PCA KNN :  0.935
+Normal KNN :  0.845
+Validation KNN :  1.0
